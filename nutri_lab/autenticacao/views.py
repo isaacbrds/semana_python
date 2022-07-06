@@ -1,11 +1,14 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
-from .utils import password_is_valid
+from .utils import password_is_valid, email_html
 from django.contrib.auth.models import User
 from django.contrib.messages import constants
 from django.contrib import messages
 from django.contrib import auth
-
+import os
+from django.conf import settings
+from .models import Ativacao
+from hashlib import sha256
 
 def cadastro(request):
   if request.method == 'GET':
@@ -26,7 +29,14 @@ def cadastro(request):
                                       password=senha,
                                      is_active=False)
       user.save()
-      messages.add(request, constants.SUCCESS, 'Usuário cadastrado com sucesso!')
+      
+      token = sha256(f"{usuario}{email}".encode()).hexdigest()
+      ativacao = Ativacao(token=token, user=user)
+      ativacao.save()
+
+      path_template = os.path.join(settings.BASE_DIR, 'autenticacao/templates/emails/cadastro_confirmado.html')
+      email_html(path_template, 'Cadastro confirmado', [email,], username=usuario, link_ativacao=f"127.0.0.1:8000/auth/ativar_conta/{token}")
+      messages.add_message(request, constants.SUCCESS, 'Usuário cadastrado com sucesso!')
       return redirect('/auth/logar')
     except:
       messages.add(request, constants.ERROR, 'Erro interno do sistema')
@@ -51,4 +61,18 @@ def logar(request):
 
 def sair(request):
   auth.logout(request)
+  return redirect('/auth/logar')
+
+
+def ativar_conta(request, token):
+  token = get_object_or_404(Ativacao, token=token)
+  if token.ativo:
+    messages.add_message(request, constants.WARNING, 'Essa token já foi usado')
+    return redirect('/auth/logar')
+  user = User.objects.get(username=token.user.username)
+  user.is_active = True
+  user.save()
+  token.ativo = True
+  token.save()
+  messages.add_message(request, constants.SUCCESS, 'Conta ativa com sucesso')
   return redirect('/auth/logar')
