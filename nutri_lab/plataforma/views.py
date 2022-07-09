@@ -43,4 +43,9 @@ def pacientes(request):
     except:
       messages.add_message(request, constants.ERROR, 'Erro interno do sistema')
       return redirect('/pacientes/')  
-  
+
+@login_required(login_url='/auth/logar')
+def dados_pacient_listar(request):
+  if request.method == 'GET':
+    paciente = Pacientes.objects.filter(nutri=request.user)
+    return render(request, 'dados_paciente_listar.html', {'paciente': paciente})
