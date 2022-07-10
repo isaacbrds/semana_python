@@ -1,9 +1,11 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.messages import constants
-from .models import Pacientes
+from .models import Pacientes, DadosPaciente
+from datetime import datetime
+
 @login_required(login_url='/auth/logar')
 def pacientes(request):
   if request.method == 'GET':
@@ -45,7 +47,48 @@ def pacientes(request):
       return redirect('/pacientes/')  
 
 @login_required(login_url='/auth/logar')
-def dados_pacient_listar(request):
+def dados_paciente_listar(request):
   if request.method == 'GET':
     paciente = Pacientes.objects.filter(nutri=request.user)
     return render(request, 'dados_paciente_listar.html', {'paciente': paciente})
+
+@login_required(login_url='/auth/logar')
+def dados_paciente(request, id):
+  paciente = get_object_or_404(Pacientes, id=id)
+  if not paciente.nutri == request.user:
+    messages.add_message(request, constants.ERROR, 'Esse paciente não é seu')
+    return redirect('/dados_paciente/')
+  if request.method == 'GET':
+    dados_paciente = DadosPaciente.objects.filter(paciente=paciente)
+    return render(request, 'dados_paciente.html', {'paciente': paciente, 'dados_paciente': dados_paciente})
+  elif request.method == "POST":
+    peso = request.POST.get('peso')
+    altura = request.POST.get('altura')
+    gordura = request.POST.get('gordura')
+    musculo = request.POST.get('musculo')
+    hdl = request.POST.get('hdl')
+    ldl = request.POST.get('ldl')
+    colesterol_total = request.POST.get('ctotal')
+    triglicerídios = request.POST.get('triglicerídios')
+
+    if (len(peso.strip()) == 0) or (len(altura.strip()) == 0) or (len(gordura.strip()) == 0) \
+    or (len(musculo.strip()) == 0) or (len(hdl.strip()) == 0) or (len(hdl.strip()) == 0) \
+    or (len(ldl.strip()) == 0) or (len(colesterol_total.strip()) == 0) or (len(triglicerídios.strip()) == 0):
+      messages.add_message(request, constants.ERROR, 'Preencha todos os campos')
+      return redirect('/dados_paciente/')
+    
+    paciente = DadosPaciente(paciente=paciente,
+                                  data=datetime.now(),
+                                  peso=peso,
+                                  altura=altura,
+                                  percentual_gordura=gordura,
+                                  percentual_musculo=musculo,
+                                  colesterol_hdl=hdl,
+                                  colesterol_ldl=ldl,
+                                  colesterol_total=colesterol_total,
+                                  trigliceridios=triglicerídios)
+    paciente.save()
+    messages.add_message(request, constants.SUCCESS, 'Dados cadastrado com sucesso')
+
+
+    return redirect('/dados_paciente/')
